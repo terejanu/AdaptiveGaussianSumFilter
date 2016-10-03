@@ -1,0 +1,100 @@
+%% ------------------------------------------------------------------------
+% init for MC results
+%--------------------------------------------------------------------------
+
+% error wrt the truth
+abserrMC_GS1 = zeros(model.fn,length(time.tspan));
+abserrMC_GS2 = zeros(model.fn,length(time.tspan));
+abserrMC_GS4 = zeros(model.fn,length(time.tspan));
+abserrMC_PF = zeros(model.fn,length(time.tspan));
+
+% error wrt the truth
+errMC_GS1 = zeros(size(time.tspan));
+errMC_GS2 = zeros(size(time.tspan));
+errMC_GS4 = zeros(size(time.tspan));
+errMC_PF = zeros(size(time.tspan));
+
+% error wrt the particle filter
+errPF_GS1 = zeros(size(time.tspan));
+errPF_GS2 = zeros(size(time.tspan));
+errPF_GS4 = zeros(size(time.tspan));
+
+% average loglikelihood
+ll_GS1 = zeros(size(time.tspan));
+ll_GS2 = zeros(size(time.tspan));
+ll_GS4 = zeros(size(time.tspan));
+
+% average estimator variance / dimension
+s_GS1 = zeros(size(time.tspan));
+s_GS2 = zeros(size(time.tspan));
+s_GS4 = zeros(size(time.tspan));
+
+for iRun = 1 : mcRuns
+    
+%--------------------------------------------------------------------------
+% distributed collection
+%--------------------------------------------------------------------------    
+    if (~runLocal)
+        taskoutput = result(iRun,:);
+        xt = taskoutput{1};     % truth
+        F1 = taskoutput{2};     % no update
+        F2 = taskoutput{3};     % classic Bayes update
+        F4 = taskoutput{4};     % continuous update - FPKE
+        PF = taskoutput{5};     % particle filter
+    end;
+    
+%--------------------------------------------------------------------------
+% get the estimates (1st & 2nd moment)
+%--------------------------------------------------------------------------
+    xGS1 = F1.x; xGS2 = F2.x; xGS4 = F4.x; xPF = PF.x;
+    sGS1 = F1.P; sGS2 = F2.P;sGS4 = F4.P; sPF = PF.P;
+    lGS1 = F1.ll; lGS2 = F2.ll; lGS4 = F4.ll;
+    
+%--------------------------------------------------------------------------
+% get the estimates (1st & 2nd moment, loglikelihood)
+%--------------------------------------------------------------------------
+
+    for i = 1 : time.nSteps 
+
+        errMC_GS1(i) = errMC_GS1(i) + norm(xGS1{i} - xt{i})^2 / mcRuns;
+        errMC_GS2(i) = errMC_GS2(i) + norm(xGS2{i} - xt{i})^2 / mcRuns;
+        errMC_GS4(i) = errMC_GS4(i) + norm(xGS4{i} - xt{i})^2 / mcRuns;  
+        errMC_PF(i) = errMC_PF(i) + norm(xPF{i} - xt{i})^2 / mcRuns;
+        
+        errPF_GS1(i) = errPF_GS1(i) + norm(xGS1{i} - xPF{i})^2 / mcRuns;
+        errPF_GS2(i) = errPF_GS2(i) + norm(xGS2{i} - xPF{i})^2 / mcRuns;
+        errPF_GS4(i) = errPF_GS4(i) + norm(xGS4{i} - xPF{i})^2 / mcRuns;  
+        
+        ll_GS1(i) = ll_GS1(i) + lGS1{i}^2 / mcRuns;
+        ll_GS2(i) = ll_GS2(i) + lGS2{i}^2 / mcRuns;
+        ll_GS4(i) = ll_GS4(i) + lGS4{i}^2 / mcRuns;  
+        
+        s_GS1(i) = s_GS1(i) + trace(sGS1{i}) / model.fn / mcRuns;
+        s_GS2(i) = s_GS2(i) + trace(sGS2{i}) / model.fn / mcRuns; 
+        s_GS4(i) = s_GS4(i) + trace(sGS4{i}) / model.fn / mcRuns;        
+    end;
+end        
+        
+
+%% ------------------------------------------------------------------------
+% PLOT RESULTS
+%--------------------------------------------------------------------------
+
+%% - RMSE (wrt truth) -----------------------------------------------------
+figure; hold on;
+plot(time.tspan,sqrt(errMC_GS1),'g');
+plot(time.tspan,sqrt(errMC_GS2),'b');
+plot(time.tspan,sqrt(errMC_GS4),'r');
+plot(time.tspan,sqrt(errMC_PF),'k');
+legend('GS1 - no update','GS2 - classic','GS4 - w.upd.FPKE','PF - partile filter'); 
+title(['avg. RMSE comparison (wrt truth) - ' num2str(mcRuns)]);
+hold off;
+
+%% - RMSE (wrt particle filter) -------------------------------------------
+figure; hold on;
+plot(time.tspan,sqrt(errPF_GS1),'g');
+plot(time.tspan,sqrt(errPF_GS2),'b');
+plot(time.tspan,sqrt(errPF_GS4),'r');
+legend('GS1 - no update','GS2 - classic','GS4 - w.upd.FPKE'); 
+title(['avg. RMSE comparison (wrt particle filter) - ' num2str(mcRuns)]);
+hold off;
